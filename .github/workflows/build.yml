@@ -6,96 +6,29 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space@master
+      - name: Build Kernel
+        uses: xiaoxindada/kernel_build_action@main
         with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 4096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
-
-      - name: Clone Toolchains (GCC & Public Clang Binary)
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchains
-          cd $GITHUB_WORKSPACE/toolchains
-          git clone https://github.com/mvaisakh/gcc-arm64.git --depth=1 gcc64
-          git clone https://github.com/mvaisakh/gcc-arm.git --depth=1 gcc32
-          
-          mkdir clang
-          cd clang
-          curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.1.0_r27/clang-r416183b.tar.gz
-          tar -xf clang-r416183b.tar.gz
-          rm clang-r416183b.tar.gz
-
-      - name: Clone Kernel Source
-        run: |
-          git clone https://github.com/RiteshSahany/kernel_xiaomi_sm6250 --depth=1 $GITHUB_WORKSPACE/kernel
-
-      - name: Set up KernelSU
-        run: |
-          cd $GITHUB_WORKSPACE/kernel
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          kernel-url: https://github.com/RiteshSahany/kernel_xiaomi_sm6250
+          kernel-branch: fourteen
+          config: miatoll_defconfig
+          arch: arm64
+          aosp-clang: true
+          # Pulls a rock-solid, highly compatible stable Clang version automatically
+          aosp-clang-version: r450784d
+          aosp-gcc: true
+          ksu: true
+          ksu-version: main
+          disable-lto: true
+          anykernel3: true
 
       - name: Inject SUSFS 4.14 Patches
         run: |
-          cd $GITHUB_WORKSPACE
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 susfs
           cd kernel
-          cp ../susfs/kernel_patches/5.y/* ./ 2>/dev/null || true
-          cp ../susfs/kernel_patches/fs/* ./fs/ 2>/dev/null || true
-          cp ../susfs/kernel_patches/include/linux/* ./include/linux/ 2>/dev/null || true
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 ../susfs4ksu
+          cp ../susfs4ksu/kernel_patches/5.y/* ./ 2>/dev/null || true
+          cp ../susfs4ksu/kernel_patches/fs/* ./fs/ 2>/dev/null || true
+          cp ../susfs4ksu/kernel_patches/include/linux/* ./include/linux/ 2>/dev/null || true
           echo "CONFIG_SUSFS=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_SUS_PATH_HIDE=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/vendor/miatoll_defconfig
-
-      - name: Compile Kernel
-        run: |
-          cd $GITHUB_WORKSPACE/kernel
-          
-          export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
-          export ARCH=arm64
-          export SUBARCH=arm64
-          
-          rm -rf out
-          
-          # Force defconfig generation
-          make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
-          
-          # Fix the checksyscalls script directly by overriding its exit status so it can never block the compiler
-          echo -e "#!/bin/sh\nexit 0" > scripts/checksyscalls.sh
-          
-          # Disable warnings-as-errors inside the generated output config profile
-          echo "CONFIG_WERROR=n" >> out/.config
-          
-          # Run compilation pass safely
-          make -j$(nproc --all) O=out \
-            CC=clang \
-            CROSS_COMPILE=aarch64-elf- \
-            CROSS_COMPILE_ARM32=arm-eabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu-
-
-      - name: Pack with AnyKernel3
-        run: |
-          cd $GITHUB_WORKSPACE
-          git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel3
-          if [ -f kernel/out/arch/arm64/boot/Image.gz-dtb ]; then
-            cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          elif [ -f kernel/out/arch/arm64/boot/Image.gz ]; then
-            cp kernel/out/arch/arm64/boot/Image.gz AnyKernel3/
-          else
-            cp kernel/out/arch/arm64/boot/Image AnyKernel3/
-          fi
-          cd AnyKernel3
-          zip -r9 ../ImperialX-Miatoll-KSU-SUSFS.zip *
-
-      - name: Upload Flashable Kernel
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImperialX-Miatoll-KSU-SUSFS
-          path: ImperialX-Miatoll-KSU-SUSFS.zip
