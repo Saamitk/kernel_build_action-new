@@ -22,12 +22,12 @@ jobs:
 
       - name: Clone Toolchain (Proton Clang)
         run: |
-          # We use standard git clone instead of curl to completely eliminate the gzip/tar errors
           git clone https://github.com/kdrag0n/proton-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
 
       - name: Clone Kernel Source
         run: |
-          git clone https://github.com/RiteshSahany/kernel_xiaomi_sm6250 -b fourteen --depth=1 $GITHUB_WORKSPACE/kernel
+          # Removed the broken branch argument to let git pull his main default branch automatically
+          git clone https://github.com/RiteshSahany/kernel_xiaomi_sm6250 --depth=1 $GITHUB_WORKSPACE/kernel
 
       - name: Set up KernelSU
         run: |
@@ -72,4 +72,3 @@ jobs:
         with:
           name: ImperialX-Miatoll-KSU-SUSFS
           path: ImperialX-Miatoll-KSU-SUSFS.zip
-          
