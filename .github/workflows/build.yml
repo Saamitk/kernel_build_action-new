@@ -47,7 +47,6 @@ jobs:
 
       - name: Patch NR_CPUS Tracepoint Bug
         run: |
-          # This completely disarms the hardcoded tracepoint blocker that broke kernel/fork.o
           sed -i 's/#error "Unsupported NR_CPUS for lb tracepoint."/\/\/ Removed tracepoint block/g' $GITHUB_WORKSPACE/kernel/include/trace/events/sched.h
 
       - name: Compile Kernel
@@ -62,8 +61,12 @@ jobs:
           
           make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # Re-enabling blazing-fast multi-core processing now that the blocker is permanently disarmed
+          # Run parallel, but drop to -j1 on failure to force the log to print the exact broken driver file
           make -j$(nproc --all) O=out \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- || \
+          make -j1 O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
