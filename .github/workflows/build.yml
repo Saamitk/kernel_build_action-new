@@ -20,9 +20,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
 
-      - name: Clone Toolchain (Proton Clang)
+      - name: Clone Toolchains (Eva GCC & Clang)
         run: |
-          git clone https://github.com/kdrag0n/proton-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
+          mkdir -p $GITHUB_WORKSPACE/toolchains
+          cd $GITHUB_WORKSPACE/toolchains
+          # Clone official prebuilts that explicitly match non-GKI 4.14 linkage structures
+          git clone https://github.com/mvaisakh/gcc-arm64.git --depth=1 gcc64
+          git clone https://github.com/mvaisakh/gcc-arm.git --depth=1 gcc32
+          git clone https://gitlab.com/rebornos-team/prebuilts/clang/host/linux-x86/clang-r41d.git --depth=1 clang
 
       - name: Clone Kernel Source
         run: |
@@ -48,28 +53,28 @@ jobs:
       - name: Compile Kernel
         run: |
           cd $GITHUB_WORKSPACE/kernel
-          export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
+          
+          # Inject all three explicit toolchains directly into the working PATH
+          export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           
-          # 1. Clean the out folder first to eliminate cached syntax errors
           rm -rf out
           
-          # 2. Generate the config using proper tool flags
-          make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          # Initialize defconfig with precise compiler targeting
+          make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
           
-          # 3. Build using standard 4.14 target matching (No global LLVM=1 macro)
+          # Compile using explicit, isolated cross-compilers so the Makefile never fails to link built-in.o
           make -j$(nproc --all) O=out \
             CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CROSS_COMPILE=aarch64-elf- \
+            CROSS_COMPILE_ARM32=arm-eabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Pack with AnyKernel3
         run: |
           cd $GITHUB_WORKSPACE
           git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel3
-          # Check for compressed or uncompressed boot images safely
           if [ -f kernel/out/arch/arm64/boot/Image.gz-dtb ]; then
             cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           elif [ -f kernel/out/arch/arm64/boot/Image.gz ]; then
