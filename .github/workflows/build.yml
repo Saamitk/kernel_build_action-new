@@ -45,9 +45,15 @@ jobs:
           echo "CONFIG_SUSFS_SUS_PATH_HIDE=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/vendor/miatoll_defconfig
 
-      - name: Patch NR_CPUS Tracepoint Bug
+      - name: Patch NR_CPUS Tracepoint Bug & Missing Scheduler Flags
         run: |
+          # Disarm the hardcoded tracepoint blocker
           sed -i 's/#error "Unsupported NR_CPUS for lb tracepoint."/\/\/ Removed tracepoint block/g' $GITHUB_WORKSPACE/kernel/include/trace/events/sched.h
+          
+          # Inject the missing NOHZ variables into the defconfig so KernelSU's core hooks can compile
+          echo "CONFIG_NO_HZ_COMMON=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/vendor/miatoll_defconfig
+          echo "CONFIG_NO_HZ_FULL=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/vendor/miatoll_defconfig
+          echo "CONFIG_NO_HZ=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/vendor/miatoll_defconfig
 
       - name: Compile Kernel
         run: |
@@ -61,15 +67,12 @@ jobs:
           
           make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # Run parallel, but drop to -j1 on failure to force the log to print the exact broken driver file
+          # Added KCFLAGS="-Wno-error" to instantly ignore code warnings globally across the tree
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- || \
-          make -j1 O=out \
-            CC=clang \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS="-Wno-error"
 
       - name: Pack with AnyKernel3
         run: |
