@@ -1,41 +1,78 @@
-name: Build Kernel
+name: Build Miatoll Imperial-X
 on:
   workflow_dispatch:
 
 jobs:
-  Build-Kernel:
-    strategy:
-      fail-fast: false
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     steps:
-      - name: Build Kernel With KSU and SUSFS
-        uses: dabao1955/kernel_build_action@main
+      - name: Maximize Build Space
+        uses: easimon/maximize-build-space@master
         with:
-          kernel-url: https://github.com/RiteshSahany/kernel_xiaomi_sm6250
-          kernel-dir: msm-4.14
-          kernel-branch: fourteen
-          config: miatoll_defconfig
-          arch: arm64
-          aosp-gcc: true
-          aosp-clang: true
-          ksu: true
-          ksu-version: main
-          android-version: 12
-          aosp-clang-version: r486301
-          disable-lto: true
-          anykernel3: true
-          
+          root-reserve-mb: 8192
+          temp-reserve-mb: 4096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
+
+      - name: Clone Toolchain (ZyC Clang)
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/toolchain
+          cd $GITHUB_WORKSPACE/toolchain
+          curl -LO https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20230214-release/ZyC_Clang-14.0.6-20230214.tar.gz
+          tar -xf ZyC_Clang-14.0.6-20230214.tar.gz
+          rm ZyC_Clang-14.0.6-20230214.tar.gz
+
+      - name: Clone Kernel Source
+        run: |
+          git clone https://github.com/RiteshSahany/kernel_xiaomi_sm6250 -b fourteen --depth=1 $GITHUB_WORKSPACE/kernel
+
+      - name: Set up KernelSU
+        run: |
+          cd $GITHUB_WORKSPACE/kernel
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+
       - name: Inject SUSFS 4.14 Patches
         run: |
-          cd msm-4.14
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 ../susfs4ksu
-          cp ../susfs4ksu/kernel_patches/5.y/* ./ 2>/dev/null || true
-          cp ../susfs4ksu/kernel_patches/fs/* ./fs/ 2>/dev/null || true
-          cp ../susfs4ksu/kernel_patches/include/linux/* ./include/linux/ 2>/dev/null || true
+          cd $GITHUB_WORKSPACE
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 susfs
+          cd kernel
+          cp ../susfs/kernel_patches/5.y/* ./ 2>/dev/null || true
+          cp ../susfs/kernel_patches/fs/* ./fs/ 2>/dev/null || true
+          cp ../susfs/kernel_patches/include/linux/* ./include/linux/ 2>/dev/null || true
           echo "CONFIG_SUSFS=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_SUS_PATH_HIDE=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/vendor/miatoll_defconfig
+
+      - name: Compile Kernel
+        run: |
+          cd $GITHUB_WORKSPACE/kernel
+          export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          export CC=clang
+          
+          make O=out vendor/miatoll_defconfig
+          make -j$(nproc --all) O=out
+
+      - name: Pack with AnyKernel3
+        run: |
+          cd $GITHUB_WORKSPACE
+          git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel3
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cd AnyKernel3
+          zip -r9 ../ImperialX-Miatoll-KSU-SUSFS.zip *
+
+      - name: Upload Flashable Kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImperialX-Miatoll-KSU-SUSFS
+          path: ImperialX-Miatoll-KSU-SUSFS.zip
           
