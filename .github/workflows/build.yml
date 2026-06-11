@@ -18,20 +18,12 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5 libelf-dev
 
-      - name: Clone Toolchains (GCC & Public Clang Binary)
+      - name: Clone Toolchain (Azure Clang)
         run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchains
-          cd $GITHUB_WORKSPACE/toolchains
-          git clone https://github.com/mvaisakh/gcc-arm64.git --depth=1 gcc64
-          git clone https://github.com/mvaisakh/gcc-arm.git --depth=1 gcc32
-          
-          mkdir clang
-          cd clang
-          curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.1.0_r27/clang-r416183b.tar.gz
-          tar -xf clang-r416183b.tar.gz
-          rm clang-r416183b.tar.gz
+          # Azure Clang is a pre-patched compiler bundle built explicitly for 4.14/4.19 kernel trees
+          git clone https://gitlab.com/Panchajanya1999/azure-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
 
       - name: Clone Kernel Source
         run: |
@@ -58,23 +50,25 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/kernel
           
-          export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
+          export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           
           rm -rf out
           
-          # Initialize the target config using Clang parameters explicitly
-          make O=out vendor/miatoll_defconfig CC=clang HOSTCC=clang HOSTCXX=clang++ CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
+          # Initialize defconfig configuration
+          make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # Force the internal scripts host to compile using modern Clang syntax flags
+          # Attempt fast compile pass. If it errors out, we automatically trigger a single-thread run (-j1)
+          # This forces the build log to show us the EXACT source line error instead of burying it under parallel jobs!
           make -j$(nproc --all) O=out \
             CC=clang \
-            HOSTCC=clang \
-            HOSTCXX=clang++ \
-            CROSS_COMPILE=aarch64-elf- \
-            CROSS_COMPILE_ARM32=arm-eabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu-
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- || \
+          make -j1 O=out \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
       - name: Pack with AnyKernel3
         run: |
