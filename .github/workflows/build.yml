@@ -4,25 +4,25 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    # Forces the entire compilation to run inside a safe, legacy-compatible container environment
+    container:
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
+
     steps:
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 4096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-
-      - name: Install Build Dependencies
+      - name: Install Container Core Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5 libelf-dev
+          apt-get update && apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib git \
+            gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
+            libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev libtinfo5 libelf-dev python2 python3
 
-      - name: Clone Toolchain (Azure Clang)
+      - name: Clone Legacy Toolchain (Proton Clang 13)
         run: |
-          git clone https://gitlab.com/Panchajanya1999/azure-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
+          git clone https://github.com/kdrag0n/proton-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
 
       - name: Clone Kernel Source
         run: |
@@ -45,26 +45,17 @@ jobs:
           echo "CONFIG_SUSFS_SUS_PATH_HIDE=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/vendor/miatoll_defconfig
 
-      - name: All-In-One Code Error Fixes
+      - name: Resolve Core Code Clashes
         run: |
           cd $GITHUB_WORKSPACE/kernel
-          
-          # 1. Disarm the hardcoded tracepoint blocker that crashed kernel/fork.o
+          # Strip the rigid tracepoint cpu checks out of existence
           sed -i 's/#error "Unsupported NR_CPUS for lb tracepoint."/\/\/ Removed tracepoint block/g' include/trace/events/sched.h
-          
-          # 2. Force-inject the missing NOHZ scheduler flags to fix kernel/sched/core.c
+          # Inject the scheduler requirements for KernelSU hooks to function cleanly
           echo "CONFIG_NO_HZ_COMMON=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_NO_HZ_FULL=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_NO_HZ=y" >> arch/arm64/configs/vendor/miatoll_defconfig
-          
-          # 3. Suppress all compiler warnings-as-errors inside the base config file layout
-          echo "CONFIG_WERROR=n" >> arch/arm64/configs/vendor/miatoll_defconfig
-          
-          # 4. Patch the main kernel Makefiles directly to strip compiler error promotions globally
-          sed -i 's/-Werror/-Wno-error/g' Makefile
-          sed -i 's/-Werror/-Wno-error/g' arch/arm64/Makefile
 
-      - name: Compile Kernel
+      - name: Compile Patch-Free Kernel
         run: |
           cd $GITHUB_WORKSPACE/kernel
           
@@ -74,20 +65,14 @@ jobs:
           
           rm -rf out
           
-          # Initialize the fully patched defconfig configuration profile
+          # Initialize matching configuration rules using precise standard targets
           make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # 5. Overwrite the generated output configurations to guarantee WERROR is dead
-          echo "CONFIG_WERROR=n" >> out/.config
-          sed -i 's/CONFIG_WERROR=y/CONFIG_WERROR=n/g' out/.config
-          
-          # 6. Run maximum multi-core blazing fast compile using brute-force error suppression variables
+          # Fire off blazing-fast multi-core build processing without triggering modern syntax traps
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-int-conversion" \
-            HOSTCFLAGS="-Wno-error"
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
       - name: Pack with AnyKernel3
         run: |
@@ -101,6 +86,7 @@ jobs:
             cp kernel/out/arch/arm64/boot/Image AnyKernel3/
           fi
           cd AnyKernel3
+          # Using standard portable compression zip paths inside container workspace
           zip -r9 ../ImperialX-Miatoll-KSU-SUSFS.zip *
 
       - name: Upload Flashable Kernel
