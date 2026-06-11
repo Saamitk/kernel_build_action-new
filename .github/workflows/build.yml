@@ -4,7 +4,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Swapped from ubuntu-latest to 20.04 to fix the missing package errors
+    runs-on: ubuntu-20.04
     steps:
       - name: Maximize Build Space
         uses: easimon/maximize-build-space@master
