@@ -20,14 +20,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
 
-      - name: Clone Toolchain (AOSP Clang 17 Mirror)
+      - name: Clone Toolchain (Proton Clang)
         run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchain
-          cd $GITHUB_WORKSPACE/toolchain
-          # Pulling from a verified raw binary mirror to completely stop the tar/gzip extraction errors
-          curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-14.0.0_r0.125/clang-r498237b.tar.gz
-          tar -xf clang-r498237b.tar.gz
-          rm clang-r498237b.tar.gz
+          # We use standard git clone instead of curl to completely eliminate the gzip/tar errors
+          git clone https://github.com/kdrag0n/proton-clang.git --depth=1 $GITHUB_WORKSPACE/toolchain
 
       - name: Clone Kernel Source
         run: |
