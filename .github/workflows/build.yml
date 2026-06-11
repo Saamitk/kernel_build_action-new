@@ -19,12 +19,13 @@ jobs:
           kernel-branch: fourteen
           config: miatoll_defconfig
           arch: arm64
-          aosp-gcc: true
-          aosp-clang: true
+          # We turn off standard AOSP downloading to bypass the 400 error
+          aosp-gcc: false
+          aosp-clang: false
+          # We tell it to pull a custom, highly reliable toolchain instead
+          custom-toolchain: https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20230214-release/ZyC_Clang-14.0.6-20230214.tar.gz
           ksu: true
           ksu-version: main
-          android-version: 12
-          aosp-clang-version: r486301
           disable-lto: true
           anykernel3: true
           
