@@ -20,15 +20,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
 
-      - name: Clone Toolchains (GCC & Public AOSP Clang Mirror)
+      - name: Clone Toolchains (GCC & Public Clang Binary)
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchains
           cd $GITHUB_WORKSPACE/toolchains
-          # Double checking depth parameters to pull compiler packages at maximum speeds
           git clone https://github.com/mvaisakh/gcc-arm64.git --depth=1 gcc64
           git clone https://github.com/mvaisakh/gcc-arm.git --depth=1 gcc32
-          # Swapped the broken GitLab repo for a permanent, public Git mirror of official AOSP Clang
-          git clone https://github.com/LineageOS/android_prebuilts_clang_host_linux-x86_clang-r450784d.git --depth=1 clang
+          
+          # Downloads a pre-compiled official stable AOSP Clang 14 package directly as a static binary bundle
+          mkdir clang
+          cd clang
+          curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.1.0_r27/clang-r416183b.tar.gz
+          tar -xf clang-r416183b.tar.gz
+          rm clang-r416183b.tar.gz
 
       - name: Clone Kernel Source
         run: |
@@ -55,17 +59,14 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/kernel
           
-          # Map all toolchain paths accurately into the shell runtime environment
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           
           rm -rf out
           
-          # Building defconfig configurations using the explicit architectural binaries
           make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
           
-          # Trigger compilation targets with explicit cross references to stop Error 2 linkage failures
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-elf- \
