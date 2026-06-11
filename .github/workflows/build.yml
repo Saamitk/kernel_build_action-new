@@ -18,7 +18,8 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
+          # Added explicit gcc cross-compilers to fulfill the aarch64-linux-gnu-gcc requirement natively
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5 gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Clone Toolchain (Proton Clang)
         run: |
@@ -26,7 +27,6 @@ jobs:
 
       - name: Clone Kernel Source
         run: |
-          # Removed the broken branch argument to let git pull his main default branch automatically
           git clone https://github.com/RiteshSahany/kernel_xiaomi_sm6250 --depth=1 $GITHUB_WORKSPACE/kernel
 
       - name: Set up KernelSU
@@ -56,8 +56,9 @@ jobs:
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           export CC=clang
           
+          # Explicitly pointing out the linking parameters to ensure Makefile targets clear out cleanly
           make O=out vendor/miatoll_defconfig
-          make -j$(nproc --all) O=out
+          make -j$(nproc --all) O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
       - name: Pack with AnyKernel3
         run: |
