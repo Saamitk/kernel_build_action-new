@@ -20,14 +20,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
 
-      - name: Clone Toolchains (Eva GCC & Clang)
+      - name: Clone Toolchains (GCC & Public AOSP Clang Mirror)
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchains
           cd $GITHUB_WORKSPACE/toolchains
-          # Clone official prebuilts that explicitly match non-GKI 4.14 linkage structures
+          # Double checking depth parameters to pull compiler packages at maximum speeds
           git clone https://github.com/mvaisakh/gcc-arm64.git --depth=1 gcc64
           git clone https://github.com/mvaisakh/gcc-arm.git --depth=1 gcc32
-          git clone https://gitlab.com/rebornos-team/prebuilts/clang/host/linux-x86/clang-r41d.git --depth=1 clang
+          # Swapped the broken GitLab repo for a permanent, public Git mirror of official AOSP Clang
+          git clone https://github.com/LineageOS/android_prebuilts_clang_host_linux-x86_clang-r450784d.git --depth=1 clang
 
       - name: Clone Kernel Source
         run: |
@@ -54,17 +55,17 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/kernel
           
-          # Inject all three explicit toolchains directly into the working PATH
+          # Map all toolchain paths accurately into the shell runtime environment
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           
           rm -rf out
           
-          # Initialize defconfig with precise compiler targeting
+          # Building defconfig configurations using the explicit architectural binaries
           make O=out vendor/miatoll_defconfig CC=clang CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
           
-          # Compile using explicit, isolated cross-compilers so the Makefile never fails to link built-in.o
+          # Trigger compilation targets with explicit cross references to stop Error 2 linkage failures
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-elf- \
