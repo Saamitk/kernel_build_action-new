@@ -14,18 +14,17 @@ jobs:
       - name: Build Kernel With KSU and SUSFS
         uses: dabao1955/kernel_build_action@main
         with:
-          kernel-url: https://github.com/RiteshSahany/kernel_xiaomi_miatoll
+          kernel-url: https://github.com/RiteshSahany/kernel_xiaomi_sm6250
           kernel-dir: msm-4.14
           kernel-branch: fourteen
           config: miatoll_defconfig
           arch: arm64
-          # We turn off standard AOSP downloading to bypass the 400 error
-          aosp-gcc: false
-          aosp-clang: false
-          # We tell it to pull a custom, highly reliable toolchain instead
-          custom-toolchain: https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20230214-release/ZyC_Clang-14.0.6-20230214.tar.gz
+          aosp-gcc: true
+          aosp-clang: true
           ksu: true
           ksu-version: main
+          android-version: 12
+          aosp-clang-version: r486301
           disable-lto: true
           anykernel3: true
           
