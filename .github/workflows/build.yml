@@ -23,23 +23,18 @@ jobs:
           aosp-clang: true
           ksu: true
           ksu-version: main
-          android-version: 11
-          aosp-clang-version: r450784d
+          android-version: 12
+          aosp-clang-version: r486301
           disable-lto: true
           anykernel3: true
           
       - name: Inject SUSFS 4.14 Patches
         run: |
           cd msm-4.14
-          # Clone the specific version of SUSFS patches meant for 4.14 kernels
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 ../susfs4ksu
-          
-          # Apply filesystem hooks safely
           cp ../susfs4ksu/kernel_patches/5.y/* ./ 2>/dev/null || true
           cp ../susfs4ksu/kernel_patches/fs/* ./fs/ 2>/dev/null || true
           cp ../susfs4ksu/kernel_patches/include/linux/* ./include/linux/ 2>/dev/null || true
-          
-          # Force include SUSFS configuration flags into Ritesh's Miatoll defconfig
           echo "CONFIG_SUSFS=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_SUS_PATH_HIDE=y" >> arch/arm64/configs/vendor/miatoll_defconfig
           echo "CONFIG_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/vendor/miatoll_defconfig
