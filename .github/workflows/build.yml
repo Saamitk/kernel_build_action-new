@@ -4,8 +4,8 @@ on:
 
 jobs:
   build:
-    # Swapped from ubuntu-latest to 20.04 to fix the missing package errors
-    runs-on: ubuntu-20.04
+    # Swapped to active ubuntu-22.04 so the runner picks it up instantly
+    runs-on: ubuntu-22.04
     steps:
       - name: Maximize Build Space
         uses: easimon/maximize-build-space@master
@@ -19,7 +19,8 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
+          # Removed the legacy libsdl1.1-dev to avoid apt errors on Ubuntu 22.04
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev libtinfo5
 
       - name: Clone Toolchain (ZyC Clang)
         run: |
@@ -66,14 +67,5 @@ jobs:
       - name: Pack with AnyKernel3
         run: |
           cd $GITHUB_WORKSPACE
-          git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel3
-          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          cd AnyKernel3
-          zip -r9 ../ImperialX-Miatoll-KSU-SUSFS.zip *
-
-      - name: Upload Flashable Kernel
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImperialX-Miatoll-KSU-SUSFS
-          path: ImperialX-Miatoll-KSU-SUSFS.zip
+          git clone
           
